@@ -365,6 +365,7 @@
                         });
                         this.updateQueueDisplay();
                         this.checkTurnTimeout();
+                        this.autoStartGame();
                     });
                 
                 // Слушаем использованные номера
@@ -389,6 +390,14 @@
                             this.checkTurnTimeout();
                         }
                     });
+            }
+
+            async autoStartGame() {
+                // Автоматически начинаем игру когда 2+ игрока в очереди
+                if (this.queue.length >= 2 && !this.currentPlayer) {
+                    console.log('Автостарт игры с', this.queue.length, 'игроками');
+                    await this.startFirstTurn();
+                }
             }
             
             async loadUserData() {
@@ -427,6 +436,7 @@
             async startFirstTurn() {
                 const firstPlayer = this.queue[0];
                 if (firstPlayer) {
+                    console.log('Начинаем игру, первый игрок:', firstPlayer.name);
                     await db.collection('gameState').doc('current').set({
                         currentPlayer: firstPlayer.id,
                         lastTurnTime: firebase.firestore.FieldValue.serverTimestamp()
@@ -478,12 +488,14 @@
                 
                 if (nextPlayer) {
                     // Передаем ход следующему
+                    console.log('Передаем ход от', this.userName, 'к', nextPlayer.name);
                     await db.collection('gameState').doc('current').set({
                         currentPlayer: nextPlayer.id,
                         lastTurnTime: firebase.firestore.FieldValue.serverTimestamp()
                     });
                 } else {
                     // Очередь пуста - сбрасываем
+                    console.log('Очередь пуста, сбрасываем ход');
                     await db.collection('gameState').doc('current').set({
                         currentPlayer: null,
                         lastTurnTime: firebase.firestore.FieldValue.serverTimestamp()
@@ -500,6 +512,7 @@
                     const turnTimeLimit = 30000; // 30 секунд на ход
                     
                     if (timeSinceLastTurn > turnTimeLimit) {
+                        console.log('Таймаут хода для игрока:', this.currentPlayer);
                         // Игрок превысил время - передаем ход следующему
                         const currentPlayerIndex = this.queue.findIndex(player => player.id === this.currentPlayer);
                         const nextPlayer = this.queue[currentPlayerIndex + 1];
