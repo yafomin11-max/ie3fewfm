@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚗 Авто Рулетка - Очередь</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+
+        .stat-item {
+            background: rgba(255,255,255,0.1);
+            padding: 6px 10px;
+            border-radius: 8px;
+            backdrop-filter: blur(10px);
+            font-size: 12px;
+        }
+
+        .global-stats {
+            background: rgba(255,255,255,0.1);
+            padding: 10px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            text-align: center;
+            font-size: 12px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 3px;
+            margin-top: 5px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(45deg, #4ECDC4, #44A08D);
+            border-radius: 3px;
+            transition: width 0.3s ease;
+        }
+
+        .queue-section {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 15px;
+            margin-bottom: 15px;
+            backdrop-filter: blur(10px);
+        }
+
+        .queue-info {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .queue-list {
+            max-height: 150px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+        }
+
+        .queue-item {
+            background: rgba(255,255,255,0.1);
+            padding: 8px 12px;
+            margin: 5px 0;
+            border-radius: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .queue-item.current {
+            background: linear-gradient(45deg, rgba(255,215,0,0.3), rgba(255,165,0,0.3));
+            border-left: 4px solid #FFD700;
+        }
+
+        .queue-position {
+            background: #FF6B6B;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 10px;
+        }
+
+        .roulette-section {
+            background: rgba(255,255,255,0.1);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 15px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .roulette-display {
+            background: rgba(0,0,0,0.3);
+            padding: 25px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            border: 2px solid rgba(255,255,255,0.2);
+            min-height: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .number-display {
+            font-size: 28px;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px rgba(255,255,255,0.5);
+        }
+
+        .spin-button {
+            background: linear-gradient(45deg, #FF6B6B, #FF8E53);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            font-size: 16px;
+            border-radius: 25px;
+            cursor: pointer;
+            width: 100%;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(255,107,107,0.4);
+        }
+
+        .spin-button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .spin-button.current-turn {
+            background: linear-gradient(45deg, #4ECDC4, #44A08D);
+        }
+
+        .inventory-section {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+
+        .inventory-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .number-item {
+            background: rgba(255,255,255,0.1);
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            border-left: 3px solid #4ECDC4;
+        }
+
+        .empty-inventory {
+            text-align: center;
+            color: rgba(255,255,255,0.7);
+            font-style: italic;
+            padding: 20px;
+        }
+
+        .current-turn {
+            background: linear-gradient(45deg, #4ECDC4, #44A08D) !important;
+            color: white;
+        }
+
+        .timer {
+            font-size: 10px;
+            opacity: 0.7;
+            margin-top: 2px;
+        }
+
+        @keyframes spin {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .spinning {
+            animation: spin 0.3s ease-in-out infinite;
+        }
+
+        .waiting {
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚗 Авто Рулетка - Очередь</h1>
+            <div class="stats">
+                <div class="stat-item">
+                    <span>📦 Мои номера:</span>
+                    <span id="myNumbersCount">0</span>
+                </div>
+                <div class="stat-item">
+                    <span>🎯 В очереди:</span>
+                    <span id="queuePosition">-</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="global-stats">
+            <div>🚗 Свободных номеров: <span id="remainingNumbers">82,944,000</span></div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill" style="width: 100%"></div>
+            </div>
+            <div class="timer" id="numbersTimer">Обновлено: сейчас</div>
+        </div>
+
+        <div class="queue-section">
+            <div class="queue-info">
+                <div>🎯 Текущий ход: <span id="currentPlayer">-</span></div>
+                <div class="timer" id="turnTimer">Ожидание игроков...</div>
+            </div>
+            <div class="queue-list" id="queueList">
+                <div class="empty-inventory">Загрузка очереди...</div>
+            </div>
+        </div>
+
+        <div class="roulette-section">
+            <div class="roulette-display" id="rouletteDisplay">
+                <div class="number-display" id="currentNumber">Ожидание хода...</div>
+            </div>
+            <button class="spin-button" id="spinButton">
+                🎯 Встать в очередь
+            </button>
+        </div>
+
+        <div class="inventory-section">
+            <h3>📦 Моя коллекция</h3>
+            <div class="inventory-list" id="inventoryList">
+                <div class="empty-inventory">Нет номеров</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+
+    <script>
+        // Firebase конфиг
+        const firebaseConfig = {
+            apiKey: "AIzaSyCatvL7x0qlNY0TWGCtlOxoDyNKbkbllq0",
+            authDomain: "car-number-be139.firebaseapp.com",
+            projectId: "car-number-be139",
+            storageBucket: "car-number-be139.firebasestorage.app",
+            messagingSenderId: "523988838128",
+            appId: "1:523988838128:web:8784eec711c44148d70435"
+        };
+
+        // Инициализация Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        // Константы для номеров
+        const LETTERS = ['А', 'В', 'Е', 'К', 'М', 'Н', 'О', 'Р', 'С', 'Т', 'У', 'Х'];
+        const REGIONS = ['01', '02', '102', '03', '04', '05', '06', '07', '08', '09', '10', 
+                        '11', '12', '13', '113', '14', '15', '16', '116', '17', '18', '19', '20',
+                        '777', '97', '99', '177', '197', '199'];
+
+        const TOTAL_COMBINATIONS = (LETTERS.length ** 3) * 1000 * REGIONS.length;
+
+        class QueueGame {
+            constructor() {
+                this.userId = this.getUserId();
+                this.userName = this.getUserName();
+                this.collection = [];
+                this.queue = [];
+                this.usedNumbers = new Set();
+                this.isMyTurn = false;
+                this.isSpinning = false;
+                this.turnTimeout = null;
+                
+                this.initializeElements();
+                this.startRealTimeListeners();
+                this.loadUserData();
+                this.startAutoQueue();
+            }
+            
+            getUserId() {
+                if (window.Telegram && Telegram.WebApp) {
+                    return 'tg_' + Telegram.WebApp.initDataUnsafe.user.id;
+                }
+                let userId = localStorage.getItem('carRouletteUserId');
+                if (!userId) {
+                    userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                    localStorage.setItem('carRouletteUserId', userId);
+                }
+                return userId;
+            }
+            
+            getUserName() {
+                if (window.Telegram && Telegram.WebApp) {
+                    return Telegram.WebApp.initDataUnsafe.user.first_name || 'Игрок';
+                }
+                return 'Игрок_' + Math.random().toString(36).substr(2, 5);
+            }
+            
+            async startAutoQueue() {
+                // Автоматически запускаем очередь если она пуста
+                const queueSnapshot = await db.collection('gameQueue').get();
+                const gameState = await db.collection('gameState').doc('current').get();
+                
+                if (queueSnapshot.empty && (!gameState.exists || !gameState.data().currentPlayer)) {
+                    // Создаем начальное состояние игры
+                    await db.collection('gameState').doc('current').set({
+                        currentPlayer: null,
+                        lastTurnTime: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                }
+            }
+            
+            async startRealTimeListeners() {
+                // Слушаем очередь
+                db.collection('gameQueue').orderBy('joinedAt', 'asc')
+                    .onSnapshot(snapshot => {
+                        this.queue = [];
+                        snapshot.forEach(doc => {
+                            this.queue.push({ id: doc.id, ...doc.data() });
+                        });
+                        this.updateQueueDisplay();
+                        this.checkTurnTimeout();
+                    });
+                
+                // Слушаем использованные номера
+                db.collection('usedNumbers').onSnapshot(snapshot => {
+                    this.usedNumbers = new Set();
+                    snapshot.forEach(doc => {
+                        this.usedNumbers.add(doc.id);
+                    });
+                    this.updateRemainingNumbers();
+                });
+                
+                // Слушаем текущего игрока
+                db.collection('gameState').doc('current')
+                    .onSnapshot(doc => {
+                        if (doc.exists) {
+                            const data = doc.data();
+                            this.currentPlayer = data.currentPlayer;
+                            this.isMyTurn = this.currentPlayer === this.userId;
+                            this.lastTurnTime = data.lastTurnTime?.toDate();
+                            this.updateCurrentPlayer();
+                            this.updateSpinButton();
+                            this.checkTurnTimeout();
+                        }
+                    });
+            }
+            
+            async loadUserData() {
+                try {
+                    const doc = await db.collection('users').doc(this.userId).get();
+                    if (doc.exists) {
+                        const data = doc.data();
+                        this.collection = data.collection || [];
+                        this.updateInventory();
+                    }
+                } catch (error) {
+                    console.error('Ошибка загрузки:', error);
+                }
+            }
+            
+            async joinQueue() {
+                if (this.queue.some(player => player.id === this.userId)) {
+                    return;
+                }
+                
+                try {
+                    await db.collection('gameQueue').doc(this.userId).set({
+                        name: this.userName,
+                        joinedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    
+                    // Если очередь была пуста, начинаем игру
+                    if (this.queue.length === 0 && !this.currentPlayer) {
+                        await this.startFirstTurn();
+                    }
+                } catch (error) {
+                    console.error('Ошибка входа в очередь:', error);
+                }
+            }
+            
+            async startFirstTurn() {
+                const firstPlayer = this.queue[0];
+                if (firstPlayer) {
+                    await db.collection('gameState').doc('current').set({
+                        currentPlayer: firstPlayer.id,
+                        lastTurnTime: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                }
+            }
+            
+            async takeTurn() {
+                if (!this.isMyTurn) return;
+                
+                this.isSpinning = true;
+                this.spinButton.disabled = true;
+                this.rouletteDisplay.classList.add('spinning');
+                
+                // Анимация
+                for (let i = 0; i < 15; i++) {
+                    const tempNumber = this.generateNumber();
+                    this.currentNumber.textContent = tempNumber;
+                    await this.delay(100 + (i * 5));
+                }
+                
+                // Генерируем уникальный номер
+                let uniqueNumber;
+                let attempts = 0;
+                do {
+                    uniqueNumber = this.generateNumber();
+                    attempts++;
+                    if (attempts > 100) {
+                        uniqueNumber = this.generateNumber() + " (дубль)";
+                        break;
+                    }
+                } while (this.usedNumbers.has(uniqueNumber));
+                
+                this.currentNumber.textContent = uniqueNumber;
+                
+                // Сохраняем номер
+                await this.saveNumber(uniqueNumber);
+                
+                // Передаем ход следующему
+                await this.passTurn();
+                
+                this.rouletteDisplay.classList.remove('spinning');
+                this.isSpinning = false;
+            }
+            
+            async passTurn() {
+                const currentIndex = this.queue.findIndex(player => player.id === this.userId);
+                const nextPlayer = this.queue[currentIndex + 1];
+                
+                if (nextPlayer) {
+                    // Передаем ход следующему
+                    await db.collection('gameState').doc('current').set({
+                        currentPlayer: nextPlayer.id,
+                        lastTurnTime: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                } else {
+                    // Очередь пуста - сбрасываем
+                    await db.collection('gameState').doc('current').set({
+                        currentPlayer: null,
+                        lastTurnTime: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                }
+                
+                // Удаляем себя из очереди
+                await db.collection('gameQueue').doc(this.userId).delete();
+            }
+            
+            async checkTurnTimeout() {
+                if (this.currentPlayer && this.lastTurnTime) {
+                    const timeSinceLastTurn = Date.now() - this.lastTurnTime.getTime();
+                    const turnTimeLimit = 30000; // 30 секунд на ход
+                    
+                    if (timeSinceLastTurn > turnTimeLimit) {
+                        // Игрок превысил время - передаем ход следующему
+                        const currentPlayerIndex = this.queue.findIndex(player => player.id === this.currentPlayer);
+                        const nextPlayer = this.queue[currentPlayerIndex + 1];
+                        
+                        if (nextPlayer) {
+                            await db.collection('gameState').doc('current').set({
+                                currentPlayer: nextPlayer.id,
+                                lastTurnTime: firebase.firestore.FieldValue.serverTimestamp()
+                            });
+                            // Удаляем "зависшего" игрока из очереди
+                            await db.collection('gameQueue').doc(this.currentPlayer).delete();
+                        } else {
+                            await db.collection('gameState').doc('current').set({
+                                currentPlayer: null,
+                                lastTurnTime: firebase.firestore.FieldValue.serverTimestamp()
+                            });
+                        }
+                    }
+                }
+            }
+            
+            generateNumber() {
+                const letter1 = LETTERS[Math.floor(Math.random() * LETTERS.length)];
+                const letter2 = LETTERS[Math.floor(Math.random() * LETTERS.length)];
+                const letter3 = LETTERS[Math.floor(Math.random() * LETTERS.length)];
+                const number = `${Math.floor(Math.random() * 10)}${Math.floor(Math.random() * 10)}${Math.floor(Math.random() * 10)}`;
+                const region = REGIONS[Math.floor(Math.random() * REGIONS.length)];
+                
+                return `${letter1}${number}${letter2}${letter3} ${region}`;
+            }
+            
+            async saveNumber(number) {
+                // Сохраняем как использованный
+                await db.collection('usedNumbers').doc(number).set({
+                    usedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    usedBy: this.userId
+                });
+                
+                // Добавляем в коллекцию пользователя
+                this.collection.unshift({
+                    number: number,
+                    timestamp: new Date().toLocaleString('ru-RU')
+                });
+                
+                await db.collection('users').doc(this.userId).set({
+                    collection: this.collection,
+                    lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+                
+                this.updateInventory();
+            }
+            
+            initializeElements() {
+                this.spinButton = document.getElementById('spinButton');
+                this.rouletteDisplay = document.getElementById('rouletteDisplay');
+                this.currentNumber = document.getElementById('currentNumber');
+                this.inventoryList = document.getElementById('inventoryList');
+                this.queueList = document.getElementById('queueList');
+                this.currentPlayerElement = document.getElementById('currentPlayer');
+                this.queuePositionElement = document.getElementById('queuePosition');
+                this.myNumbersCountElement = document.getElementById('myNumbersCount');
+                this.remainingNumbersElement = document.getElementById('remainingNumbers');
+                this.progressFill = document.getElementById('progressFill');
+                this.turnTimer = document.getElementById('turnTimer');
+                this.numbersTimer = document.getElementById('numbersTimer');
+                
+                this.spinButton.addEventListener('click', () => {
+                    if (this.isMyTurn) {
+                        this.takeTurn();
+                    } else {
+                        this.joinQueue();
+                    }
+                });
+
+                // Обновляем таймер каждую секунду
+                setInterval(() => this.updateTimers(), 1000);
+            }
+            
+            updateQueueDisplay() {
+                const myPosition = this.queue.findIndex(player => player.id === this.userId) + 1;
+                
+                if (this.queue.length === 0) {
+                    this.queueList.innerHTML = '<div class="empty-inventory">Очередь пуста</div>';
+                    this.queuePositionElement.textContent = '-';
+                    return;
+                }
+                
+                this.queueList.innerHTML = this.queue.map((player, index) => `
+                    <div class="queue-item ${player.id === this.currentPlayer ? 'current' : ''} 
+                                         ${player.id === this.userId ? 'current-turn' : ''}">
+                        <span>${player.name || 'Игрок'}</span>
+                        <span class="queue-position">${index + 1}</span>
+                    </div>
+                `).join('');
+                
+                this.queuePositionElement.textContent = myPosition > 0 ? myPosition : '-';
+            }
+            
+            updateCurrentPlayer() {
+                const currentPlayerData = this.queue.find(player => player.id === this.currentPlayer);
+                this.currentPlayerElement.textContent = currentPlayerData ? 
+                    (currentPlayerData.name || 'Игрок') : 'Нет';
+            }
+            
+            updateSpinButton() {
+                if (this.isMyTurn) {
+                    this.spinButton.textContent = '🎰 Крутить рулетку';
+                    this.spinButton.disabled = this.isSpinning;
+                    this.spinButton.classList.add('current-turn');
+                    this.rouletteDisplay.classList.remove('waiting');
+                } else {
+                    this.spinButton.textContent = this.queue.some(player => player.id === this.userId) 
+                        ? '⏳ В очереди...' 
+                        : '🎯 Встать в очередь';
+                    this.spinButton.disabled = this.queue.some(player => player.id === this.userId);
+                    this.spinButton.classList.remove('current-turn');
+                    this.rouletteDisplay.classList.add('waiting');
+                }
+            }
+            
+            updateInventory() {
+                this.myNumbersCountElement.textContent = this.collection.length;
+                
+                if (this.collection.length === 0) {
+                    this.inventoryList.innerHTML = '<div class="empty-inventory">Нет номеров</div>';
+                    return;
+                }
+                
+                this.inventoryList.innerHTML = this.collection
+                    .map(item => `
+                        <div class="number-item">
+                            🚗 ${item.number}
+                            <div style="font-size: 10px; opacity: 0.7;">${item.timestamp}</div>
+                        </div>
+                    `)
+                    .join('');
+            }
+            
+            updateRemainingNumbers() {
+                const remaining = TOTAL_COMBINATIONS - this.usedNumbers.size;
+                const percentage = (remaining / TOTAL_COMBINATIONS) * 100;
+                
+                this.remainingNumbersElement.textContent = remaining.toLocaleString('ru-RU');
+                this.progressFill.style.width = percentage + '%';
+                this.numbersTimer.textContent = 'Обновлено: ' + new Date().toLocaleTimeString('ru-RU');
+            }
+            
+            updateTimers() {
+                if (this.lastTurnTime) {
+                    const timeSinceLastTurn = Date.now() - this.lastTurnTime.getTime();
+                    const timeLeft = Math.max(0, 30000 - timeSinceLastTurn);
+                    
+                    if (timeLeft > 0) {
+                        this.turnTimer.textContent = `Время хода: ${Math.ceil(timeLeft / 1000)}с`;
+                    } else {
+                        this.turnTimer.textContent = 'Ход завершен';
+                    }
+                } else {
+                    this.turnTimer.textContent = 'Ожидание игроков...';
+                }
+            }
+            
+            delay(ms) {
+                return new Promise(resolve => setTimeout(resolve, ms));
+            }
+        }
+
+        // Запускаем игру
+        let game;
+        document.addEventListener('DOMContentLoaded', () => {
+            game = new QueueGame();
+        });
+    </script>
+</body>
+</html>
