@@ -53,23 +53,51 @@
 
         .tabs {
             display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
+            gap: 8px;
+            margin-bottom: 10px;
             justify-content: center;
+            flex-wrap: wrap;
         }
 
         .tab {
             background: rgba(255,255,255,0.1);
-            padding: 8px 16px;
-            border-radius: 15px;
+            padding: 6px 12px;
+            border-radius: 12px;
             cursor: pointer;
             transition: all 0.3s ease;
             backdrop-filter: blur(10px);
-            font-size: 14px;
+            font-size: 12px;
+            border: none;
+            color: white;
         }
 
         .tab.active {
             background: rgba(255,255,255,0.3);
+            font-weight: bold;
+        }
+
+        .special-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .special-tab {
+            background: rgba(255,215,0,0.2);
+            padding: 6px 12px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+            font-size: 12px;
+            border: 1px solid rgba(255,215,0,0.5);
+            color: #FFD700;
+        }
+
+        .special-tab.active {
+            background: rgba(255,215,0,0.4);
             font-weight: bold;
         }
 
@@ -235,6 +263,11 @@
             border-left: 4px solid #FFD700;
         }
 
+        .number-item.special {
+            background: linear-gradient(45deg, rgba(147,51,234,0.2), rgba(79,70,229,0.2));
+            border-left: 4px solid #9333EA;
+        }
+
         .favorite-star {
             color: #FFD700;
             font-size: 18px;
@@ -283,6 +316,15 @@
         .waiting {
             opacity: 0.7;
         }
+
+        .special-badge {
+            background: linear-gradient(45deg, #9333EA, #7C3AED);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 8px;
+            font-size: 10px;
+            margin-left: 5px;
+        }
     </style>
 </head>
 <body>
@@ -308,6 +350,11 @@
         <div class="tabs">
             <div class="tab active" data-tab="all">Все номера</div>
             <div class="tab" data-tab="favorites">⭐ Избранные</div>
+        </div>
+
+        <div class="special-tabs">
+            <div class="special-tab" data-tab="special_numbers">🔢 3 одинаковые цифры</div>
+            <div class="special-tab" data-tab="special_letters">🔤 3 одинаковые буквы</div>
         </div>
 
         <div class="global-stats">
@@ -389,7 +436,8 @@
                 this.isSpinning = false;
                 this.turnTimeout = null;
                 this.currentTab = 'all';
-                this.gameMode = 'solo'; // 'solo' или 'queue'
+                this.specialTab = null;
+                this.gameMode = 'solo';
                 
                 this.initializeElements();
                 this.startRealTimeListeners();
@@ -414,6 +462,40 @@
                     return Telegram.WebApp.initDataUnsafe.user.first_name || 'Игрок';
                 }
                 return 'Игрок_' + Math.random().toString(36).substr(2, 5);
+            }
+
+            // Функции для проверки специальных номеров
+            hasThreeSameNumbers(numberStr) {
+                // Извлекаем цифры из номера (формат: А123ВС 777)
+                const numbers = numberStr.match(/\d+/g);
+                if (!numbers) return false;
+                
+                const mainNumbers = numbers[0]; // Основные 3 цифры
+                if (mainNumbers && mainNumbers.length === 3) {
+                    return mainNumbers[0] === mainNumbers[1] && mainNumbers[1] === mainNumbers[2];
+                }
+                return false;
+            }
+
+            hasThreeSameLetters(numberStr) {
+                // Извлекаем буквы из номера (формат: А123ВС 777)
+                const letters = numberStr.match(/[А-ЯЁ]+/g);
+                if (!letters) return false;
+                
+                const mainLetters = letters[0]; // Основные 3 буквы
+                if (mainLetters && mainLetters.length === 3) {
+                    return mainLetters[0] === mainLetters[1] && mainLetters[1] === mainLetters[2];
+                }
+                return false;
+            }
+
+            isSpecialNumber(numberData) {
+                if (this.specialTab === 'special_numbers') {
+                    return this.hasThreeSameNumbers(numberData.number);
+                } else if (this.specialTab === 'special_letters') {
+                    return this.hasThreeSameLetters(numberData.number);
+                }
+                return false;
             }
             
             async startRealTimeListeners() {
@@ -454,7 +536,6 @@
             }
 
             async startAutoSkipTimer() {
-                // Таймер автоскипа каждые 5 секунд
                 setInterval(async () => {
                     await this.checkTurnTimeout();
                 }, 5000);
@@ -463,12 +544,11 @@
             async checkTurnTimeout() {
                 if (this.currentPlayer && this.lastTurnTime) {
                     const timeSinceLastTurn = Date.now() - this.lastTurnTime.getTime();
-                    const turnTimeLimit = 30000; // 30 секунд
+                    const turnTimeLimit = 30000;
                     
                     if (timeSinceLastTurn > turnTimeLimit) {
                         console.log('🚨 АВТОСКИП: Игрок', this.currentPlayer, 'превысил время');
                         
-                        // Автоматически передаем ход следующему
                         const currentPlayerIndex = this.queue.findIndex(player => player.id === this.currentPlayer);
                         const nextPlayer = this.queue[currentPlayerIndex + 1];
                         
@@ -477,16 +557,12 @@
                                 currentPlayer: nextPlayer.id,
                                 lastTurnTime: firebase.firestore.FieldValue.serverTimestamp()
                             });
-                            // Удаляем "зависшего" игрока из очереди
                             await db.collection('gameQueue').doc(this.currentPlayer).delete();
-                            console.log('✅ Ход передан:', nextPlayer.name);
                         } else {
-                            // Если следующего игрока нет - сбрасываем
                             await db.collection('gameState').doc('current').set({
                                 currentPlayer: null,
                                 lastTurnTime: firebase.firestore.FieldValue.serverTimestamp()
                             });
-                            console.log('✅ Очередь завершена');
                         }
                     }
                 }
@@ -564,14 +640,12 @@
                 this.spinButton.disabled = true;
                 this.rouletteDisplay.classList.add('spinning');
                 
-                // Анимация
                 for (let i = 0; i < 15; i++) {
                     const tempNumber = this.generateNumber();
                     this.currentNumber.textContent = tempNumber;
                     await this.delay(100 + (i * 5));
                 }
                 
-                // Генерируем уникальный номер
                 let uniqueNumber;
                 let attempts = 0;
                 do {
@@ -584,11 +658,8 @@
                 } while (this.usedNumbers.has(uniqueNumber));
                 
                 this.currentNumber.textContent = uniqueNumber;
-                
-                // Сохраняем номер
                 await this.saveNumber(uniqueNumber);
                 
-                // Если мультиплеер - передаем ход
                 if (this.gameMode === 'queue') {
                     await this.passTurn();
                 }
@@ -603,13 +674,11 @@
                 const nextPlayer = this.queue[currentIndex + 1];
                 
                 if (nextPlayer) {
-                    console.log('🔄 Передаем ход от', this.userName, 'к', nextPlayer.name);
                     await db.collection('gameState').doc('current').set({
                         currentPlayer: nextPlayer.id,
                         lastTurnTime: firebase.firestore.FieldValue.serverTimestamp()
                     });
                 } else {
-                    console.log('🏁 Очередь пуста, сбрасываем ход');
                     await db.collection('gameState').doc('current').set({
                         currentPlayer: null,
                         lastTurnTime: firebase.firestore.FieldValue.serverTimestamp()
@@ -630,18 +699,18 @@
             }
             
             async saveNumber(number) {
-                // Сохраняем как использованный
                 await db.collection('usedNumbers').doc(number).set({
                     usedAt: firebase.firestore.FieldValue.serverTimestamp(),
                     usedBy: this.userId
                 });
                 
-                // Добавляем в коллекцию пользователя
                 const numberData = {
                     id: this.userId + '_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
                     number: number,
                     timestamp: new Date().toLocaleString('ru-RU'),
-                    isFavorite: false
+                    isFavorite: false,
+                    hasThreeSameNumbers: this.hasThreeSameNumbers(number),
+                    hasThreeSameLetters: this.hasThreeSameLetters(number)
                 };
                 
                 this.collection.unshift(numberData);
@@ -702,18 +771,38 @@
                     this.takeTurn();
                 });
 
-                // Обработчики вкладок
+                // Обработчики основных вкладок
                 document.querySelectorAll('.tab').forEach(tab => {
                     tab.addEventListener('click', (e) => {
                         document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
                         e.target.classList.add('active');
                         this.currentTab = e.target.dataset.tab;
+                        this.specialTab = null;
+                        document.querySelectorAll('.special-tab').forEach(t => t.classList.remove('active'));
                         this.updateInventory();
                         this.updateTitle();
                     });
                 });
 
-                // Таймер обновления каждую секунду
+                // Обработчики специальных вкладок
+                document.querySelectorAll('.special-tab').forEach(tab => {
+                    tab.addEventListener('click', (e) => {
+                        const clickedTab = e.target.dataset.tab;
+                        if (this.specialTab === clickedTab) {
+                            // Если нажата активная вкладка - сбрасываем
+                            this.specialTab = null;
+                            e.target.classList.remove('active');
+                        } else {
+                            // Активируем новую вкладку
+                            this.specialTab = clickedTab;
+                            document.querySelectorAll('.special-tab').forEach(t => t.classList.remove('active'));
+                            e.target.classList.add('active');
+                        }
+                        this.updateInventory();
+                        this.updateTitle();
+                    });
+                });
+
                 setInterval(() => this.updateTimers(), 1000);
             }
 
@@ -727,11 +816,17 @@
             }
 
             updateTitle() {
+                let title = '📦 Все номера';
+                
                 if (this.currentTab === 'favorites') {
-                    this.inventoryTitle.textContent = '⭐ Избранные номера';
-                } else {
-                    this.inventoryTitle.textContent = '📦 Все номера';
+                    title = '⭐ Избранные номера';
+                } else if (this.specialTab === 'special_numbers') {
+                    title = '🔢 Номера с 3 одинаковыми цифрами';
+                } else if (this.specialTab === 'special_letters') {
+                    title = '🔤 Номера с 3 одинаковыми буквами';
                 }
+                
+                this.inventoryTitle.textContent = title;
             }
             
             updateQueueDisplay() {
@@ -786,30 +881,43 @@
             updateInventory() {
                 let displayCollection = this.collection;
                 
+                // Основные фильтры
                 if (this.currentTab === 'favorites') {
                     displayCollection = this.collection.filter(item => item.isFavorite);
                 }
                 
+                // Специальные фильтры
+                if (this.specialTab) {
+                    displayCollection = displayCollection.filter(item => this.isSpecialNumber(item));
+                }
+                
                 if (displayCollection.length === 0) {
-                    const emptyText = this.currentTab === 'favorites' 
-                        ? 'Нет избранных номеров' 
-                        : 'Нет номеров';
+                    let emptyText = 'Нет номеров';
+                    if (this.currentTab === 'favorites') emptyText = 'Нет избранных номеров';
+                    if (this.specialTab === 'special_numbers') emptyText = 'Нет номеров с 3 одинаковыми цифрами';
+                    if (this.specialTab === 'special_letters') emptyText = 'Нет номеров с 3 одинаковыми буквами';
+                    
                     this.inventoryList.innerHTML = `<div class="empty-inventory">${emptyText}</div>`;
                     return;
                 }
                 
                 this.inventoryList.innerHTML = displayCollection
-                    .map(item => `
-                        <div class="number-item ${item.isFavorite ? 'favorite' : ''}" 
+                    .map(item => {
+                        const isSpecial = this.isSpecialNumber(item);
+                        const badges = [];
+                        if (item.hasThreeSameNumbers) badges.push('🔢');
+                        if (item.hasThreeSameLetters) badges.push('🔤');
+                        
+                        return `
+                        <div class="number-item ${item.isFavorite ? 'favorite' : ''} ${isSpecial ? 'special' : ''}" 
                              onclick="game.toggleFavorite('${item.id}')">
                             <div>
-                                <div>🚗 ${item.number}</div>
+                                <div>🚗 ${item.number} ${badges.join(' ')}</div>
                                 <div style="font-size: 10px; opacity: 0.7;">${item.timestamp}</div>
                             </div>
                             <span class="favorite-star">${item.isFavorite ? '⭐' : '☆'}</span>
                         </div>
-                    `)
-                    .join('');
+                    `}).join('');
             }
             
             updateRemainingNumbers() {
