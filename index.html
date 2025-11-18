@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚗 Авто Рулетка</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            font-size: 28px;
+            margin-bottom: 15px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            background: rgba(255,255,255,0.1);
+            padding: 10px 15px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+
+        .roulette-section {
+            background: rgba(255,255,255,0.1);
+            padding: 25px;
+            border-radius: 20px;
+            margin-bottom: 25px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .roulette-display {
+            background: rgba(0,0,0,0.3);
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            border: 2px solid rgba(255,255,255,0.2);
+        }
+
+        .number-display {
+            font-size: 32px;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px rgba(255,255,255,0.5);
+        }
+
+        .spin-button {
+            background: linear-gradient(45deg, #FF6B6B, #FF8E53);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            border-radius: 50px;
+            cursor: pointer;
+            width: 100%;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(255,107,107,0.4);
+        }
+
+        .spin-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(255,107,107,0.6);
+        }
+
+        .spin-button:active {
+            transform: translateY(0);
+        }
+
+        .spin-button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .inventory-section {
+            background: rgba(255,255,255,0.1);
+            padding: 20px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .inventory-section h2 {
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .inventory-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .number-item {
+            background: rgba(255,255,255,0.1);
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+            border-left: 4px solid #4ECDC4;
+        }
+
+        .empty-inventory {
+            text-align: center;
+            color: rgba(255,255,255,0.7);
+            font-style: italic;
+            padding: 20px;
+        }
+
+        .combinations {
+            text-align: center;
+            font-size: 12px;
+            color: rgba(255,255,255,0.7);
+            margin-top: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        .spinning {
+            animation: spin 0.5s ease-in-out infinite;
+        }
+
+        .inventory-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .inventory-list::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.1);
+            border-radius: 3px;
+        }
+
+        .inventory-list::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.3);
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚗 Авто Рулетка</h1>
+            <div class="stats">
+                <div class="stat-item">
+                    <span>Коллекция:</span>
+                    <span id="collectionCount">0</span>
+                </div>
+                <div class="stat-item">
+                    <span>Кручений:</span>
+                    <span id="spinCount">0</span>
+                </div>
+                <div class="stat-item">
+                    <span>Уникальных:</span>
+                    <span id="uniqueCount">0</span>
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <div class="roulette-section">
+                <div class="roulette-display" id="rouletteDisplay">
+                    <div class="number-display" id="currentNumber">А000АА 777</div>
+                </div>
+                <button class="spin-button" id="spinButton">
+                    🎰 Крутить рулетку
+                </button>
+                <div class="combinations" id="combinationsInfo">
+                    Всего комбинаций: 1,728,000,000
+                </div>
+            </div>
+
+            <div class="inventory-section">
+                <h2>📦 Моя коллекция</h2>
+                <div class="inventory-list" id="inventoryList">
+                    <div class="empty-inventory">Коллекция пуста</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // ВСЕ возможные русские буквы (12 стандартных + дополнительные)
+        const LETTERS = [
+            'А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ё', 'Ж', 'З', 'И', 'Й', 'К', 'Л', 'М', 
+            'Н', 'О', 'П', 'Р', 'С', 'Т', 'У', 'Ф', 'Х', 'Ц', 'Ч', 'Ш', 'Щ', 'Ъ', 
+            'Ы', 'Ь', 'Э', 'Ю', 'Я'
+        ];
+
+        // ВСЕ возможные цифры (000-999)
+        // Генерируем все комбинации от 000 до 999
+        const NUMBERS = Array.from({length: 1000}, (_, i) => 
+            i.toString().padStart(3, '0')
+        );
+
+        // ВСЕ возможные регионы России (1-999 + специальные)
+        const REGIONS = Array.from({length: 999}, (_, i) => 
+            (i + 1).toString()
+        ).concat([
+            '002', '003', '004', '005', '006', '007', '008', '009',
+            '010', '011', '012', '013', '014', '015', '016', '017', '018', '019',
+            '020', '021', '022', '023', '024', '025', '026', '027', '028', '029',
+            '030', '031', '032', '033', '034', '035', '036', '037', '038', '039',
+            '040', '041', '042', '043', '044', '045', '046', '047', '048', '049',
+            '050', '051', '052', '053', '054', '055', '056', '057', '058', '059',
+            '060', '061', '062', '063', '064', '065', '066', '067', '068', '069',
+            '070', '071', '072', '073', '074', '075', '076', '077', '078', '079',
+            '080', '081', '082', '083', '084', '085', '086', '087', '088', '089',
+            '090', '091', '092', '093', '094', '095', '096', '097', '098', '099',
+            '102', '113', '116', '121', '123', '124', '125', '126', '134', '136',
+            '138', '142', '147', '150', '152', '154', '156', '159', '161', '163',
+            '164', '173', '174', '177', '178', '186', '190', '196', '197', '199',
+            '277', '299', '377', '399', '477', '499', '577', '599', '677', '699',
+            '777', '799', '877', '899', '977', '999'
+        ]);
+
+        // Расчет общего количества комбинаций
+        const TOTAL_COMBINATIONS = (LETTERS.length ** 3) * NUMBERS.length * REGIONS.length;
+
+        class CarNumberGenerator {
+            static generate() {
+                const letter1 = LETTERS[Math.floor(Math.random() * LETTERS.length)];
+                const letter2 = LETTERS[Math.floor(Math.random() * LETTERS.length)];
+                const letter3 = LETTERS[Math.floor(Math.random() * LETTERS.length)];
+                const number = NUMBERS[Math.floor(Math.random() * NUMBERS.length)];
+                const region = REGIONS[Math.floor(Math.random() * REGIONS.length)];
+                
+                return `${letter1}${number}${letter2}${letter3} ${region}`;
+            }
+        }
+
+        class Game {
+            constructor() {
+                this.spinCount = 0;
+                this.collection = [];
+                this.uniqueNumbers = new Set();
+                this.isSpinning = false;
+                
+                this.initializeElements();
+                this.loadGame();
+                this.updateDisplay();
+            }
+            
+            initializeElements() {
+                this.spinButton = document.getElementById('spinButton');
+                this.rouletteDisplay = document.getElementById('rouletteDisplay');
+                this.currentNumber = document.getElementById('currentNumber');
+                this.inventoryList = document.getElementById('inventoryList');
+                this.collectionCount = document.getElementById('collectionCount');
+                this.spinCountElement = document.getElementById('spinCount');
+                this.uniqueCount = document.getElementById('uniqueCount');
+                this.combinationsInfo = document.getElementById('combinationsInfo');
+                
+                this.spinButton.addEventListener('click', () => this.spin());
+                
+                // Показываем информацию о комбинациях
+                this.combinationsInfo.textContent = 
+                    `Всего комбинаций: ${TOTAL_COMBINATIONS.toLocaleString('ru-RU')}`;
+            }
+            
+            async spin() {
+                if (this.isSpinning) return;
+                
+                this.isSpinning = true;
+                this.spinButton.disabled = true;
+                this.rouletteDisplay.classList.add('spinning');
+                
+                // Анимация кручения
+                const spins = 20;
+                for (let i = 0; i < spins; i++) {
+                    this.currentNumber.textContent = CarNumberGenerator.generate();
+                    await this.delay(80 + (i * 5));
+                }
+                
+                // Финальный номер
+                const finalNumber = CarNumberGenerator.generate();
+                this.currentNumber.textContent = finalNumber;
+                
+                // Добавляем в коллекцию
+                this.collection.unshift(finalNumber);
+                this.uniqueNumbers.add(finalNumber);
+                this.spinCount++;
+                
+                // Сохраняем и обновляем
+                this.saveGame();
+                this.updateDisplay();
+                
+                // Завершаем анимацию
+                this.rouletteDisplay.classList.remove('spinning');
+                this.spinButton.disabled = false;
+                this.isSpinning = false;
+            }
+            
+            updateDisplay() {
+                // Обновляем статистику
+                this.collectionCount.textContent = this.collection.length;
+                this.spinCountElement.textContent = this.spinCount;
+                this.uniqueCount.textContent = this.uniqueNumbers.size;
+                
+                // Обновляем инвентарь
+                this.updateInventory();
+            }
+            
+            updateInventory() {
+                if (this.collection.length === 0) {
+                    this.inventoryList.innerHTML = '<div class="empty-inventory">Коллекция пуста</div>';
+                    return;
+                }
+                
+                this.inventoryList.innerHTML = this.collection
+                    .map(number => `<div class="number-item">🚗 ${number}</div>`)
+                    .join('');
+            }
+            
+            saveGame() {
+                const gameData = {
+                    spinCount: this.spinCount,
+                    collection: this.collection,
+                    uniqueNumbers: Array.from(this.uniqueNumbers)
+                };
+                localStorage.setItem('carRouletteGame', JSON.stringify(gameData));
+            }
+            
+            loadGame() {
+                const saved = localStorage.getItem('carRouletteGame');
+                if (saved) {
+                    const gameData = JSON.parse(saved);
+                    this.spinCount = gameData.spinCount || 0;
+                    this.collection = gameData.collection || [];
+                    this.uniqueNumbers = new Set(gameData.uniqueNumbers || []);
+                }
+            }
+            
+            delay(ms) {
+                return new Promise(resolve => setTimeout(resolve, ms));
+            }
+        }
+
+        // Запускаем игру когда страница загрузится
+        document.addEventListener('DOMContentLoaded', () => {
+            new Game();
+        });
+    </script>
+</body>
+</html>
