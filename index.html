@@ -226,6 +226,11 @@
             background: linear-gradient(45deg, #FFD700, #FFA500) !important;
         }
 
+        .trade-button {
+            background: linear-gradient(45deg, #9333EA, #7C3AED) !important;
+            margin-top: 10px;
+        }
+
         .inventory-section {
             background: rgba(255,255,255,0.1);
             padding: 15px;
@@ -268,6 +273,12 @@
             border-left: 4px solid #9333EA;
         }
 
+        .number-item.selected {
+            background: linear-gradient(45deg, rgba(34,197,94,0.3), rgba(21,128,61,0.3));
+            border-left: 4px solid #22C55E;
+            transform: scale(1.02);
+        }
+
         .favorite-star {
             color: #FFD700;
             font-size: 18px;
@@ -276,6 +287,13 @@
 
         .favorite-star:hover {
             transform: scale(1.3);
+        }
+
+        .trade-icon {
+            color: #9333EA;
+            font-size: 16px;
+            margin-left: 5px;
+            cursor: pointer;
         }
 
         .empty-inventory {
@@ -301,6 +319,21 @@
             font-size: 12px;
             margin-bottom: 10px;
             opacity: 0.8;
+        }
+
+        .trade-section {
+            background: rgba(147,51,234,0.2);
+            padding: 15px;
+            border-radius: 15px;
+            margin-bottom: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(147,51,234,0.5);
+        }
+
+        .trade-info {
+            text-align: center;
+            margin-bottom: 10px;
+            color: #E9D5FF;
         }
 
         @keyframes spin {
@@ -350,6 +383,7 @@
         <div class="tabs">
             <div class="tab active" data-tab="all">Все номера</div>
             <div class="tab" data-tab="favorites">⭐ Избранные</div>
+            <div class="tab" data-tab="trade">🔄 Обмен</div>
         </div>
 
         <div class="special-tabs">
@@ -358,11 +392,21 @@
         </div>
 
         <div class="global-stats">
-            <div>🚗 Свободных номеров: <span id="remainingNumbers">82,944,000</span></div>
+            <div>🚗 Свободных номеров: <span id="remainingNumbers">0</span></div>
             <div class="progress-bar">
                 <div class="progress-fill" id="progressFill" style="width: 100%"></div>
             </div>
             <div class="timer" id="numbersTimer">Обновлено: сейчас</div>
+        </div>
+
+        <div class="trade-section" id="tradeSection" style="display: none;">
+            <div class="trade-info">
+                <div>🔄 Режим обмена - выбери номер для обмена</div>
+                <div class="timer">Выбрано: <span id="selectedCount">0</span> номеров</div>
+            </div>
+            <button class="spin-button trade-button" id="confirmTradeButton" disabled>
+                ✅ Подтвердить обмен
+            </button>
         </div>
 
         <div class="queue-section">
@@ -417,13 +461,30 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
-        // Константы для номеров
-        const LETTERS = ['А', 'В', 'Е', 'К', 'М', 'Н', 'О', 'Р', 'С', 'Т', 'У', 'Х'];
-        const REGIONS = ['01', '02', '102', '03', '04', '05', '06', '07', '08', '09', '10', 
-                        '11', '12', '13', '113', '14', '15', '16', '116', '17', '18', '19', '20',
-                        '777', '97', '99', '177', '197', '199'];
+        // МАКСИМАЛЬНОЕ КОЛИЧЕСТВО КОМБИНАЦИЙ
+        const LETTERS = [
+            'А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ё', 'Ж', 'З', 'И', 'Й', 'К', 'Л', 'М', 
+            'Н', 'О', 'П', 'Р', 'С', 'Т', 'У', 'Ф', 'Х', 'Ц', 'Ч', 'Ш', 'Щ', 'Ъ', 
+            'Ы', 'Ь', 'Э', 'Ю', 'Я'
+        ];
 
-        const TOTAL_COMBINATIONS = (LETTERS.length ** 3) * 1000 * REGIONS.length;
+        // 999 номеров от 001 до 999
+        const NUMBERS = Array.from({length: 999}, (_, i) => 
+            (i + 1).toString().padStart(3, '0')
+        );
+
+        // ВСЕ регионы России от 01 до 999
+        const REGIONS = Array.from({length: 999}, (_, i) => 
+            (i + 1).toString().padStart(2, '0')
+        ).concat([
+            '102', '113', '116', '121', '123', '124', '125', '126', '134', '136',
+            '138', '142', '147', '150', '152', '154', '156', '159', '161', '163',
+            '164', '173', '174', '177', '178', '186', '190', '196', '197', '199',
+            '277', '299', '377', '399', '477', '499', '577', '599', '677', '699',
+            '777', '799', '877', '899', '977', '999'
+        ]);
+
+        const TOTAL_COMBINATIONS = (LETTERS.length ** 3) * NUMBERS.length * REGIONS.length;
 
         class QueueGame {
             constructor() {
@@ -438,6 +499,8 @@
                 this.currentTab = 'all';
                 this.specialTab = null;
                 this.gameMode = 'solo';
+                this.selectedNumbers = new Set();
+                this.tradeMode = false;
                 
                 this.initializeElements();
                 this.startRealTimeListeners();
@@ -464,29 +527,36 @@
                 return 'Игрок_' + Math.random().toString(36).substr(2, 5);
             }
 
-            // Функции для проверки специальных номеров
-            hasThreeSameNumbers(numberStr) {
-                // Извлекаем цифры из номера (формат: А123ВС 777)
-                const numbers = numberStr.match(/\d+/g);
-                if (!numbers) return false;
-                
-                const mainNumbers = numbers[0]; // Основные 3 цифры
-                if (mainNumbers && mainNumbers.length === 3) {
-                    return mainNumbers[0] === mainNumbers[1] && mainNumbers[1] === mainNumbers[2];
+            // ИСПРАВЛЕННАЯ функция для проверки 3 одинаковых букв
+            hasThreeSameLetters(numberStr) {
+                try {
+                    const lettersPart = numberStr.split(' ')[0];
+                    const letters = lettersPart.replace(/\d/g, '');
+                    
+                    if (letters.length >= 3) {
+                        return letters[0] === letters[1] && letters[1] === letters[2];
+                    }
+                    return false;
+                } catch (error) {
+                    console.error('Ошибка проверки букв:', error);
+                    return false;
                 }
-                return false;
             }
 
-            hasThreeSameLetters(numberStr) {
-                // Извлекаем буквы из номера (формат: А123ВС 777)
-                const letters = numberStr.match(/[А-ЯЁ]+/g);
-                if (!letters) return false;
-                
-                const mainLetters = letters[0]; // Основные 3 буквы
-                if (mainLetters && mainLetters.length === 3) {
-                    return mainLetters[0] === mainLetters[1] && mainLetters[1] === mainLetters[2];
+            hasThreeSameNumbers(numberStr) {
+                try {
+                    const numbersPart = numberStr.split(' ')[0];
+                    const numbers = numbersPart.match(/\d+/g);
+                    
+                    if (numbers && numbers[0] && numbers[0].length === 3) {
+                        const num = numbers[0];
+                        return num[0] === num[1] && num[1] === num[2];
+                    }
+                    return false;
+                } catch (error) {
+                    console.error('Ошибка проверки цифр:', error);
+                    return false;
                 }
-                return false;
             }
 
             isSpecialNumber(numberData) {
@@ -497,9 +567,61 @@
                 }
                 return false;
             }
+
+            // Функции для обмена
+            toggleTradeMode() {
+                this.tradeMode = !this.tradeMode;
+                this.selectedNumbers.clear();
+                
+                const tradeSection = document.getElementById('tradeSection');
+                const confirmButton = document.getElementById('confirmTradeButton');
+                
+                if (this.tradeMode) {
+                    tradeSection.style.display = 'block';
+                    confirmButton.disabled = true;
+                } else {
+                    tradeSection.style.display = 'none';
+                    confirmButton.disabled = true;
+                }
+                
+                this.updateInventory();
+                this.updateSelectedCount();
+            }
+
+            toggleNumberSelection(numberId) {
+                if (!this.tradeMode) return;
+                
+                if (this.selectedNumbers.has(numberId)) {
+                    this.selectedNumbers.delete(numberId);
+                } else {
+                    this.selectedNumbers.add(numberId);
+                }
+                
+                const confirmButton = document.getElementById('confirmTradeButton');
+                confirmButton.disabled = this.selectedNumbers.size === 0;
+                
+                this.updateInventory();
+                this.updateSelectedCount();
+            }
+
+            updateSelectedCount() {
+                document.getElementById('selectedCount').textContent = this.selectedNumbers.size;
+            }
+
+            async confirmTrade() {
+                if (this.selectedNumbers.size === 0) return;
+                
+                // Здесь будет логика обмена с другими игроками
+                // Пока просто убираем выделение
+                alert(`Выбрано ${this.selectedNumbers.size} номеров для обмена! В будущем здесь будет система обмена с другими игроками.`);
+                
+                this.selectedNumbers.clear();
+                this.tradeMode = false;
+                document.getElementById('tradeSection').style.display = 'none';
+                this.updateInventory();
+            }
             
             async startRealTimeListeners() {
-                // Слушаем очередь
                 db.collection('gameQueue').orderBy('joinedAt', 'asc')
                     .onSnapshot(snapshot => {
                         this.queue = [];
@@ -511,7 +633,6 @@
                         this.autoStartGame();
                     });
                 
-                // Слушаем использованные номера
                 db.collection('usedNumbers').onSnapshot(snapshot => {
                     this.usedNumbers = new Set();
                     snapshot.forEach(doc => {
@@ -520,7 +641,6 @@
                     this.updateRemainingNumbers();
                 });
                 
-                // Слушаем текущего игрока
                 db.collection('gameState').doc('current')
                     .onSnapshot(doc => {
                         if (doc.exists) {
@@ -692,7 +812,7 @@
                 const letter1 = LETTERS[Math.floor(Math.random() * LETTERS.length)];
                 const letter2 = LETTERS[Math.floor(Math.random() * LETTERS.length)];
                 const letter3 = LETTERS[Math.floor(Math.random() * LETTERS.length)];
-                const number = `${Math.floor(Math.random() * 10)}${Math.floor(Math.random() * 10)}${Math.floor(Math.random() * 10)}`;
+                const number = NUMBERS[Math.floor(Math.random() * NUMBERS.length)];
                 const region = REGIONS[Math.floor(Math.random() * REGIONS.length)];
                 
                 return `${letter1}${number}${letter2}${letter3} ${region}`;
@@ -719,6 +839,11 @@
             }
 
             async toggleFavorite(numberId) {
+                if (this.tradeMode) {
+                    this.toggleNumberSelection(numberId);
+                    return;
+                }
+                
                 const number = this.collection.find(item => item.id === numberId);
                 if (number) {
                     number.isFavorite = !number.isFavorite;
@@ -754,6 +879,7 @@
                 this.progressFill = document.getElementById('progressFill');
                 this.turnTimer = document.getElementById('turnTimer');
                 this.numbersTimer = document.getElementById('numbersTimer');
+                this.confirmTradeButton = document.getElementById('confirmTradeButton');
                 
                 this.spinButton.addEventListener('click', () => {
                     if (this.gameMode === 'queue') {
@@ -771,12 +897,25 @@
                     this.takeTurn();
                 });
 
+                this.confirmTradeButton.addEventListener('click', () => {
+                    this.confirmTrade();
+                });
+
                 // Обработчики основных вкладок
                 document.querySelectorAll('.tab').forEach(tab => {
                     tab.addEventListener('click', (e) => {
                         document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
                         e.target.classList.add('active');
                         this.currentTab = e.target.dataset.tab;
+                        
+                        if (this.currentTab === 'trade') {
+                            this.toggleTradeMode();
+                        } else {
+                            this.tradeMode = false;
+                            document.getElementById('tradeSection').style.display = 'none';
+                            this.selectedNumbers.clear();
+                        }
+                        
                         this.specialTab = null;
                         document.querySelectorAll('.special-tab').forEach(t => t.classList.remove('active'));
                         this.updateInventory();
@@ -789,11 +928,9 @@
                     tab.addEventListener('click', (e) => {
                         const clickedTab = e.target.dataset.tab;
                         if (this.specialTab === clickedTab) {
-                            // Если нажата активная вкладка - сбрасываем
                             this.specialTab = null;
                             e.target.classList.remove('active');
                         } else {
-                            // Активируем новую вкладку
                             this.specialTab = clickedTab;
                             document.querySelectorAll('.special-tab').forEach(t => t.classList.remove('active'));
                             e.target.classList.add('active');
@@ -820,6 +957,8 @@
                 
                 if (this.currentTab === 'favorites') {
                     title = '⭐ Избранные номера';
+                } else if (this.currentTab === 'trade') {
+                    title = '🔄 Выбор для обмена';
                 } else if (this.specialTab === 'special_numbers') {
                     title = '🔢 Номера с 3 одинаковыми цифрами';
                 } else if (this.specialTab === 'special_letters') {
@@ -894,6 +1033,7 @@
                 if (displayCollection.length === 0) {
                     let emptyText = 'Нет номеров';
                     if (this.currentTab === 'favorites') emptyText = 'Нет избранных номеров';
+                    if (this.currentTab === 'trade') emptyText = 'Выбери номера для обмена';
                     if (this.specialTab === 'special_numbers') emptyText = 'Нет номеров с 3 одинаковыми цифрами';
                     if (this.specialTab === 'special_letters') emptyText = 'Нет номеров с 3 одинаковыми буквами';
                     
@@ -904,18 +1044,21 @@
                 this.inventoryList.innerHTML = displayCollection
                     .map(item => {
                         const isSpecial = this.isSpecialNumber(item);
+                        const isSelected = this.selectedNumbers.has(item.id);
                         const badges = [];
                         if (item.hasThreeSameNumbers) badges.push('🔢');
                         if (item.hasThreeSameLetters) badges.push('🔤');
                         
                         return `
-                        <div class="number-item ${item.isFavorite ? 'favorite' : ''} ${isSpecial ? 'special' : ''}" 
+                        <div class="number-item ${item.isFavorite ? 'favorite' : ''} 
+                                              ${isSpecial ? 'special' : ''}
+                                              ${isSelected ? 'selected' : ''}" 
                              onclick="game.toggleFavorite('${item.id}')">
                             <div>
                                 <div>🚗 ${item.number} ${badges.join(' ')}</div>
                                 <div style="font-size: 10px; opacity: 0.7;">${item.timestamp}</div>
                             </div>
-                            <span class="favorite-star">${item.isFavorite ? '⭐' : '☆'}</span>
+                            <span class="favorite-star">${this.tradeMode ? (isSelected ? '✅' : '⚪') : (item.isFavorite ? '⭐' : '☆')}</span>
                         </div>
                     `}).join('');
             }
