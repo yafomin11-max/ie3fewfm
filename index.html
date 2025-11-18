@@ -231,6 +231,11 @@
             margin-top: 10px;
         }
 
+        .cancel-button {
+            background: linear-gradient(45deg, #6B7280, #4B5563) !important;
+            margin-top: 5px;
+        }
+
         .inventory-section {
             background: rgba(255,255,255,0.1);
             padding: 15px;
@@ -336,6 +341,45 @@
             color: #E9D5FF;
         }
 
+        .trade-input {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 10px;
+            padding: 10px;
+            color: white;
+            width: 100%;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .trade-input::placeholder {
+            color: rgba(255,255,255,0.6);
+        }
+
+        .trade-offers {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 15px;
+            margin-bottom: 15px;
+            backdrop-filter: blur(10px);
+        }
+
+        .trade-offer {
+            background: rgba(255,255,255,0.1);
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 10px;
+            border-left: 4px solid #9333EA;
+        }
+
+        .trade-offer.accepted {
+            border-left: 4px solid #22C55E;
+        }
+
+        .trade-offer.declined {
+            border-left: 4px solid #EF4444;
+        }
+
         @keyframes spin {
             0% { transform: scale(1); }
             50% { transform: scale(1.05); }
@@ -384,6 +428,7 @@
             <div class="tab active" data-tab="all">Все номера</div>
             <div class="tab" data-tab="favorites">⭐ Избранные</div>
             <div class="tab" data-tab="trade">🔄 Обмен</div>
+            <div class="tab" data-tab="offers">📨 Предложения</div>
         </div>
 
         <div class="special-tabs">
@@ -399,14 +444,30 @@
             <div class="timer" id="numbersTimer">Обновлено: сейчас</div>
         </div>
 
+        <!-- Секция создания обмена -->
         <div class="trade-section" id="tradeSection" style="display: none;">
             <div class="trade-info">
-                <div>🔄 Режим обмена - выбери номер для обмена</div>
+                <div>🔄 Создать обмен</div>
                 <div class="timer">Выбрано: <span id="selectedCount">0</span> номеров</div>
             </div>
-            <button class="spin-button trade-button" id="confirmTradeButton" disabled>
-                ✅ Подтвердить обмен
+            <input type="text" class="trade-input" id="tradeUsername" placeholder="Введите @username игрока">
+            <button class="spin-button trade-button" id="sendTradeButton" disabled>
+                📨 Отправить предложение
             </button>
+            <button class="spin-button cancel-button" id="cancelTradeButton">
+                ❌ Отмена
+            </button>
+        </div>
+
+        <!-- Секция предложений обмена -->
+        <div class="trade-offers" id="tradeOffersSection" style="display: none;">
+            <div class="trade-info">
+                <div>📨 Предложения обмена</div>
+                <div class="timer" id="offersCount">Активных предложений: 0</div>
+            </div>
+            <div id="tradeOffersList">
+                <div class="empty-inventory">Нет активных предложений</div>
+            </div>
         </div>
 
         <div class="queue-section">
@@ -490,6 +551,7 @@
             constructor() {
                 this.userId = this.getUserId();
                 this.userName = this.getUserName();
+                this.userUsername = this.getUserUsername();
                 this.collection = [];
                 this.queue = [];
                 this.usedNumbers = new Set();
@@ -501,6 +563,7 @@
                 this.gameMode = 'solo';
                 this.selectedNumbers = new Set();
                 this.tradeMode = false;
+                this.tradeOffers = [];
                 
                 this.initializeElements();
                 this.startRealTimeListeners();
@@ -525,6 +588,13 @@
                     return Telegram.WebApp.initDataUnsafe.user.first_name || 'Игрок';
                 }
                 return 'Игрок_' + Math.random().toString(36).substr(2, 5);
+            }
+
+            getUserUsername() {
+                if (window.Telegram && Telegram.WebApp) {
+                    return Telegram.WebApp.initDataUnsafe.user.username || this.getUserName();
+                }
+                return this.getUserName();
             }
 
             // ИСПРАВЛЕННАЯ функция для проверки 3 одинаковых букв
@@ -574,18 +644,26 @@
                 this.selectedNumbers.clear();
                 
                 const tradeSection = document.getElementById('tradeSection');
-                const confirmButton = document.getElementById('confirmTradeButton');
+                const sendButton = document.getElementById('sendTradeButton');
                 
                 if (this.tradeMode) {
                     tradeSection.style.display = 'block';
-                    confirmButton.disabled = true;
+                    sendButton.disabled = true;
+                    document.getElementById('tradeUsername').value = '';
                 } else {
                     tradeSection.style.display = 'none';
-                    confirmButton.disabled = true;
+                    sendButton.disabled = true;
                 }
                 
                 this.updateInventory();
                 this.updateSelectedCount();
+            }
+
+            toggleOffersMode() {
+                this.tradeMode = false;
+                document.getElementById('tradeSection').style.display = 'none';
+                document.getElementById('tradeOffersSection').style.display = 'block';
+                this.loadTradeOffers();
             }
 
             toggleNumberSelection(numberId) {
@@ -597,8 +675,9 @@
                     this.selectedNumbers.add(numberId);
                 }
                 
-                const confirmButton = document.getElementById('confirmTradeButton');
-                confirmButton.disabled = this.selectedNumbers.size === 0;
+                const sendButton = document.getElementById('sendTradeButton');
+                const username = document.getElementById('tradeUsername').value.trim();
+                sendButton.disabled = this.selectedNumbers.size === 0 || !username;
                 
                 this.updateInventory();
                 this.updateSelectedCount();
@@ -608,20 +687,159 @@
                 document.getElementById('selectedCount').textContent = this.selectedNumbers.size;
             }
 
-            async confirmTrade() {
+            async sendTradeOffer() {
                 if (this.selectedNumbers.size === 0) return;
                 
-                // Здесь будет логика обмена с другими игроками
-                // Пока просто убираем выделение
-                alert(`Выбрано ${this.selectedNumbers.size} номеров для обмена! В будущем здесь будет система обмена с другими игроками.`);
+                const targetUsername = document.getElementById('tradeUsername').value.trim();
+                if (!targetUsername) {
+                    alert('Введите username игрока!');
+                    return;
+                }
+
+                // Убираем @ если есть
+                const cleanUsername = targetUsername.replace('@', '');
                 
-                this.selectedNumbers.clear();
-                this.tradeMode = false;
-                document.getElementById('tradeSection').style.display = 'none';
-                this.updateInventory();
+                const selectedNumbersData = Array.from(this.selectedNumbers).map(id => 
+                    this.collection.find(item => item.id === id)
+                ).filter(Boolean);
+
+                try {
+                    const tradeId = 'trade_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                    
+                    await db.collection('tradeOffers').doc(tradeId).set({
+                        fromUserId: this.userId,
+                        fromUserName: this.userName,
+                        fromUserUsername: this.userUsername,
+                        toUserUsername: cleanUsername,
+                        numbers: selectedNumbersData,
+                        status: 'pending', // pending, accepted, declined
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 часа
+                    });
+
+                    alert(`✅ Предложение обмена отправлено игроку @${cleanUsername}`);
+                    
+                    this.selectedNumbers.clear();
+                    this.tradeMode = false;
+                    document.getElementById('tradeSection').style.display = 'none';
+                    document.getElementById('tradeUsername').value = '';
+                    this.updateInventory();
+                    
+                } catch (error) {
+                    console.error('Ошибка отправки предложения:', error);
+                    alert('❌ Ошибка отправки предложения');
+                }
+            }
+
+            async loadTradeOffers() {
+                try {
+                    // Получаем предложения, где мы отправители
+                    const sentOffers = await db.collection('tradeOffers')
+                        .where('fromUserUsername', '==', this.userUsername)
+                        .where('status', '==', 'pending')
+                        .get();
+
+                    // Получаем предложения, где мы получатели
+                    const receivedOffers = await db.collection('tradeOffers')
+                        .where('toUserUsername', '==', this.userUsername)
+                        .where('status', '==', 'pending')
+                        .get();
+
+                    this.tradeOffers = [];
+                    
+                    sentOffers.forEach(doc => {
+                        this.tradeOffers.push({ id: doc.id, type: 'sent', ...doc.data() });
+                    });
+                    
+                    receivedOffers.forEach(doc => {
+                        this.tradeOffers.push({ id: doc.id, type: 'received', ...doc.data() });
+                    });
+
+                    this.updateTradeOffersDisplay();
+                    
+                } catch (error) {
+                    console.error('Ошибка загрузки предложений:', error);
+                }
+            }
+
+            async respondToTrade(tradeId, accept) {
+                try {
+                    const tradeRef = db.collection('tradeOffers').doc(tradeId);
+                    const tradeDoc = await tradeRef.get();
+                    
+                    if (!tradeDoc.exists) {
+                        alert('Предложение не найдено!');
+                        return;
+                    }
+
+                    const tradeData = tradeDoc.data();
+                    
+                    if (accept) {
+                        // Принимаем обмен
+                        await tradeRef.update({
+                            status: 'accepted',
+                            respondedAt: firebase.firestore.FieldValue.serverTimestamp()
+                        });
+                        
+                        // Здесь должна быть логика передачи номеров
+                        alert('✅ Обмен принят! Номера переданы.');
+                    } else {
+                        // Отклоняем обмен
+                        await tradeRef.update({
+                            status: 'declined',
+                            respondedAt: firebase.firestore.FieldValue.serverTimestamp()
+                        });
+                        alert('❌ Обмен отклонен');
+                    }
+
+                    this.loadTradeOffers();
+                    
+                } catch (error) {
+                    console.error('Ошибка обработки предложения:', error);
+                    alert('❌ Ошибка обработки предложения');
+                }
+            }
+
+            updateTradeOffersDisplay() {
+                const offersList = document.getElementById('tradeOffersList');
+                const offersCount = document.getElementById('offersCount');
+                
+                if (this.tradeOffers.length === 0) {
+                    offersList.innerHTML = '<div class="empty-inventory">Нет активных предложений</div>';
+                    offersCount.textContent = 'Активных предложений: 0';
+                    return;
+                }
+
+                offersCount.textContent = `Активных предложений: ${this.tradeOffers.length}`;
+                
+                offersList.innerHTML = this.tradeOffers.map(offer => {
+                    const numbersList = offer.numbers.map(num => num.number).join(', ');
+                    
+                    if (offer.type === 'sent') {
+                        return `
+                            <div class="trade-offer">
+                                <div><strong>➡️ Для:</strong> @${offer.toUserUsername}</div>
+                                <div><strong>📦 Номера:</strong> ${numbersList}</div>
+                                <div class="timer">Ожидание ответа...</div>
+                            </div>
+                        `;
+                    } else {
+                        return `
+                            <div class="trade-offer">
+                                <div><strong>⬅️ От:</strong> ${offer.fromUserName} (@${offer.fromUserUsername})</div>
+                                <div><strong>📦 Предлагает:</strong> ${numbersList}</div>
+                                <div style="display: flex; gap: 5px; margin-top: 8px;">
+                                    <button class="tab" onclick="game.respondToTrade('${offer.id}', true)" style="background: #22C55E;">✅ Принять</button>
+                                    <button class="tab" onclick="game.respondToTrade('${offer.id}', false)" style="background: #EF4444;">❌ Отклонить</button>
+                                </div>
+                            </div>
+                        `;
+                    }
+                }).join('');
             }
             
             async startRealTimeListeners() {
+                // Слушаем очередь
                 db.collection('gameQueue').orderBy('joinedAt', 'asc')
                     .onSnapshot(snapshot => {
                         this.queue = [];
@@ -633,6 +851,7 @@
                         this.autoStartGame();
                     });
                 
+                // Слушаем использованные номера
                 db.collection('usedNumbers').onSnapshot(snapshot => {
                     this.usedNumbers = new Set();
                     snapshot.forEach(doc => {
@@ -641,6 +860,7 @@
                     this.updateRemainingNumbers();
                 });
                 
+                // Слушаем текущего игрока
                 db.collection('gameState').doc('current')
                     .onSnapshot(doc => {
                         if (doc.exists) {
@@ -651,6 +871,15 @@
                             this.updateCurrentPlayer();
                             this.updateSpinButton();
                             this.updateTimers();
+                        }
+                    });
+
+                // Слушаем предложения обмена в реальном времени
+                db.collection('tradeOffers')
+                    .where('status', '==', 'pending')
+                    .onSnapshot(snapshot => {
+                        if (this.currentTab === 'offers') {
+                            this.loadTradeOffers();
                         }
                     });
             }
@@ -856,6 +1085,7 @@
                 try {
                     await db.collection('users').doc(this.userId).set({
                         collection: this.collection,
+                        username: this.userUsername,
                         lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
                     }, { merge: true });
                 } catch (error) {
@@ -879,7 +1109,9 @@
                 this.progressFill = document.getElementById('progressFill');
                 this.turnTimer = document.getElementById('turnTimer');
                 this.numbersTimer = document.getElementById('numbersTimer');
-                this.confirmTradeButton = document.getElementById('confirmTradeButton');
+                this.sendTradeButton = document.getElementById('sendTradeButton');
+                this.cancelTradeButton = document.getElementById('cancelTradeButton');
+                this.tradeUsername = document.getElementById('tradeUsername');
                 
                 this.spinButton.addEventListener('click', () => {
                     if (this.gameMode === 'queue') {
@@ -897,8 +1129,17 @@
                     this.takeTurn();
                 });
 
-                this.confirmTradeButton.addEventListener('click', () => {
-                    this.confirmTrade();
+                this.sendTradeButton.addEventListener('click', () => {
+                    this.sendTradeOffer();
+                });
+
+                this.cancelTradeButton.addEventListener('click', () => {
+                    this.toggleTradeMode();
+                });
+
+                this.tradeUsername.addEventListener('input', () => {
+                    const username = this.tradeUsername.value.trim();
+                    this.sendTradeButton.disabled = this.selectedNumbers.size === 0 || !username;
                 });
 
                 // Обработчики основных вкладок
@@ -908,11 +1149,15 @@
                         e.target.classList.add('active');
                         this.currentTab = e.target.dataset.tab;
                         
+                        document.getElementById('tradeSection').style.display = 'none';
+                        document.getElementById('tradeOffersSection').style.display = 'none';
+                        
                         if (this.currentTab === 'trade') {
                             this.toggleTradeMode();
+                        } else if (this.currentTab === 'offers') {
+                            this.toggleOffersMode();
                         } else {
                             this.tradeMode = false;
-                            document.getElementById('tradeSection').style.display = 'none';
                             this.selectedNumbers.clear();
                         }
                         
@@ -959,6 +1204,8 @@
                     title = '⭐ Избранные номера';
                 } else if (this.currentTab === 'trade') {
                     title = '🔄 Выбор для обмена';
+                } else if (this.currentTab === 'offers') {
+                    title = '📨 Предложения обмена';
                 } else if (this.specialTab === 'special_numbers') {
                     title = '🔢 Номера с 3 одинаковыми цифрами';
                 } else if (this.specialTab === 'special_letters') {
